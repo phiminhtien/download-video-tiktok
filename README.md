@@ -1,18 +1,13 @@
 # TikTok Video Downloader — No Watermark
 
-A command-line tool to download TikTok videos without the watermark.
+Download TikTok videos without watermark — CLI and Web UI.
 
 ## Features
 
 - Downloads TikTok videos without watermark
 - Supports short URLs (`vm.tiktok.com`)
-- Automatic fallback between yt-dlp and direct scraping
-- Simple CLI interface
-
-## Requirements
-
-- Python 3.10+
-- [ffmpeg](https://ffmpeg.org/download.html) (optional, for best quality)
+- **CLI mode** — simple command line
+- **Web UI** — beautiful browser interface
 
 ## Installation
 
@@ -22,23 +17,19 @@ pip install -r requirements.txt
 
 ## Usage
 
+### CLI
+
 ```bash
 python main.py <tiktok-url>
+python main.py  # then paste URL when prompted
 ```
 
-Or run without arguments to paste the URL:
+### Web UI
 
 ```bash
-python main.py
+python web.py
+# Open http://127.0.0.1:8000
 ```
-
-### Example
-
-```bash
-python main.py https://www.tiktok.com/@user/video/123456789
-```
-
-Output is saved to the `downloads/` directory.
 
 ## Troubleshooting
 
@@ -46,4 +37,4 @@ Output is saved to the `downloads/` directory.
 pip install -U yt-dlp
 ```
 
-If ffmpeg is missing, download from [ffmpeg.org](https://ffmpeg.org/download.html). Without it, yt-dlp may fall back to lower quality.
+Install [ffmpeg](https://ffmpeg.org/download.html) for best quality.
