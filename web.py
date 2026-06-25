@@ -2,7 +2,6 @@ import os
 import re
 import subprocess
 import sys
-import uuid
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
@@ -34,8 +33,8 @@ def extract_video_id(url: str) -> str | None:
     return None
 
 
-def download_video_ytdlp(url: str) -> tuple[str | None, str | None]:
-    output_template = os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s")
+def download_ytdlp(url: str) -> dict:
+    output_template = os.path.join(DOWNLOAD_DIR, "%(id)s_%(autonumber)s.%(ext)s")
     cmd = [
         sys.executable, "-m", "yt_dlp",
         url,
@@ -47,15 +46,22 @@ def download_video_ytdlp(url: str) -> tuple[str | None, str | None]:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
-            filepath = result.stdout.strip().split("\n")[-1].strip()
-            if filepath and os.path.exists(filepath):
-                video_id = extract_video_id(url) or uuid.uuid4().hex[:8]
-                return filepath, video_id
-        return None, result.stderr.strip() if result.stderr else "Unknown error"
+            files = [f.strip() for f in result.stdout.strip().splitlines() if f.strip()]
+            files = [f for f in files if os.path.exists(f)]
+            if files:
+                is_video = any(f.lower().endswith(('.mp4', '.webm', '.mkv', '.mov')) for f in files)
+                total_size = sum(os.path.getsize(f) for f in files)
+                return {
+                    "success": True,
+                    "type": "video" if is_video else "images",
+                    "files": [os.path.basename(f) for f in files],
+                    "size_mb": round(total_size / 1024 / 1024, 2),
+                }
+        return {"success": False, "error": result.stderr.strip() or "Download failed"}
     except subprocess.TimeoutExpired:
-        return None, "Download timed out"
+        return {"success": False, "error": "Download timed out"}
     except Exception as e:
-        return None, str(e)
+        return {"success": False, "error": str(e)}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -69,18 +75,10 @@ async def api_download(url: str = Form(...)):
     if not url or "tiktok" not in url:
         return JSONResponse({"success": False, "error": "Invalid TikTok URL"})
 
-    filepath, error = download_video_ytdlp(url)
-    if filepath and os.path.exists(filepath):
-        filename = os.path.basename(filepath)
-        size = os.path.getsize(filepath)
-        return JSONResponse({
-            "success": True,
-            "filename": filename,
-            "size_mb": round(size / 1024 / 1024, 2),
-            "download_url": f"/downloads/{filename}",
-        })
-
-    return JSONResponse({"success": False, "error": error})
+    result = download_ytdlp(url)
+    if result["success"]:
+        return JSONResponse(result)
+    return JSONResponse(result)
 
 
 @app.get("/download/{filename}")

@@ -4,10 +4,10 @@ Download TikTok videos without watermark — CLI and Web UI.
 
 ## Features
 
-- Downloads TikTok videos without watermark
+- Downloads TikTok videos and image slideshows without watermark
 - Supports short URLs (`vm.tiktok.com`)
 - **CLI mode** — simple command line
-- **Web UI** — beautiful browser interface
+- **Web UI** — beautiful browser interface with video/image preview
 
 ## Installation
 

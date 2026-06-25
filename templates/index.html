@@ -21,7 +21,7 @@
             border-radius: 20px;
             padding: 40px;
             width: 90%;
-            max-width: 520px;
+            max-width: 560px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
@@ -93,6 +93,28 @@
             margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        video {
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            background: #000;
+            max-height: 500px;
+        }
+        .image-gallery {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 0 12px;
+            margin-bottom: 12px;
+            scroll-snap-type: x mandatory;
+        }
+        .image-gallery img {
+            height: 300px;
+            border-radius: 10px;
+            scroll-snap-align: start;
+            flex-shrink: 0;
+            background: #000;
+        }
         .result {
             display: none;
             margin-top: 20px;
@@ -103,17 +125,12 @@
             text-align: center;
         }
         .result.show { display: block; }
-        video {
-            width: 100%;
-            border-radius: 10px;
-            margin-bottom: 16px;
-            background: #000;
-        }
         .result .size { color: #aaa; font-size: 13px; margin: 8px 0 16px; }
         .result-actions {
             display: flex;
             gap: 8px;
             justify-content: center;
+            flex-wrap: wrap;
         }
         .btn-download {
             display: inline-block;
@@ -147,7 +164,7 @@
 <body>
     <div class="container">
         <h1>TikTok Downloader</h1>
-        <p class="subtitle">Tải video TikTok không watermark</p>
+        <p class="subtitle">Tải video / ảnh TikTok không watermark</p>
 
         <div class="input-group">
             <input type="text" id="urlInput" placeholder="Dán link TikTok vào đây...">
@@ -162,12 +179,10 @@
         </div>
 
         <div class="result" id="result">
-            <video id="videoPreview" controls playsinline></video>
+            <div id="previewArea"></div>
             <div style="font-weight: 600;">Tải thành công!</div>
             <div class="size" id="fileSize"></div>
-            <div class="result-actions">
-                <a class="btn-download" id="downloadLink" href="#" download>Tải xuống</a>
-            </div>
+            <div class="result-actions" id="resultActions"></div>
         </div>
 
         <div class="footer">Powered by yt-dlp</div>
@@ -188,7 +203,7 @@
             btn.disabled = true;
             result.classList.remove('show');
             status.classList.add('show');
-            status.innerHTML = '<div class="loading"><div class="spinner"></div><span>Đang tải video...</span></div>';
+            status.innerHTML = '<div class="loading"><div class="spinner"></div><span>Đang tải...</span></div>';
 
             try {
                 const formData = new FormData();
@@ -200,11 +215,35 @@
                 if (data.success) {
                     status.classList.remove('show');
                     result.classList.add('show');
-                    document.getElementById('fileSize').textContent = `Kích thước: ${data.size_mb} MB`;
-                    const video = document.getElementById('videoPreview');
-                    video.src = data.download_url;
-                    video.load();
-                    document.getElementById('downloadLink').href = data.download_url;
+
+                    document.getElementById('fileSize').textContent = `Tổng dung lượng: ${data.size_mb} MB`;
+
+                    const previewArea = document.getElementById('previewArea');
+                    previewArea.innerHTML = '';
+
+                    if (data.type === 'video') {
+                        const video = document.createElement('video');
+                        video.controls = true;
+                        video.playsInline = true;
+                        video.src = `/downloads/${data.files[0]}`;
+                        previewArea.appendChild(video);
+                        document.getElementById('resultActions').innerHTML =
+                            `<a class="btn-download" href="/downloads/${data.files[0]}" download>Tải video</a>`;
+                    } else {
+                        const gallery = document.createElement('div');
+                        gallery.className = 'image-gallery';
+                        data.files.forEach(f => {
+                            const img = document.createElement('img');
+                            img.src = `/downloads/${f}`;
+                            img.alt = f;
+                            gallery.appendChild(img);
+                        });
+                        previewArea.appendChild(gallery);
+                        document.getElementById('resultActions').innerHTML =
+                            data.files.map(f =>
+                                `<a class="btn-download" href="/downloads/${f}" download>Tải ảnh</a>`
+                            ).join(' ');
+                    }
                 } else {
                     showStatus('Lỗi: ' + data.error + '<div class="hint">Thử cập nhật: py -m pip install -U yt-dlp</div>', true);
                 }
