@@ -34,7 +34,7 @@ def extract_post_id(url: str) -> str | None:
 
 
 def download_photo_via_tikwm(url: str) -> dict:
-    """Download all images from TikTok photo slideshow via tikwm.com API."""
+    """Download all images + audio from TikTok photo slideshow via tikwm.com API."""
     post_id = extract_post_id(url) or "unknown"
     try:
         resp = requests.post(
@@ -66,6 +66,26 @@ def download_photo_via_tikwm(url: str) -> dict:
             size = os.path.getsize(filepath)
             total_size += size
             files.append(filename)
+
+        # Also download audio (music)
+        music_url = data.get("data", {}).get("music", "") or data.get("data", {}).get("music_info", {}).get("play", "")
+        if music_url:
+            try:
+                audio_resp = requests.get(music_url, timeout=30, stream=True)
+                audio_resp.raise_for_status()
+                audio_ext = audio_resp.headers.get("Content-Type", "audio/mpeg").split("/")[-1].split(";")[0]
+                if audio_ext not in ("mp3", "m4a", "aac", "wav"):
+                    audio_ext = "mp3"
+                audio_name = f"{post_id}_audio.{audio_ext}"
+                audio_path = os.path.join(DOWNLOAD_DIR, audio_name)
+                with open(audio_path, "wb") as f:
+                    for chunk in audio_resp.iter_content(8192):
+                        f.write(chunk)
+                audio_size = os.path.getsize(audio_path)
+                total_size += audio_size
+                files.append(audio_name)
+            except Exception as e:
+                print(f"  Audio download failed: {e}")
 
         return {
             "success": True,
