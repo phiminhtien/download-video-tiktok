@@ -56,6 +56,7 @@ def main():
     else:
         tiktok_url = input("\nEnter TikTok URL: ").strip()
 
+    tiktok_url = tiktok_url.replace("/photo/", "/video/")
     if not tiktok_url or "tiktok." not in tiktok_url:
         print("Invalid TikTok URL.")
         sys.exit(1)

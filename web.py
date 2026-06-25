@@ -71,7 +71,7 @@ async def index(request: Request):
 
 @app.post("/api/download")
 async def api_download(url: str = Form(...)):
-    url = url.strip()
+    url = url.strip().replace("/photo/", "/video/")
     if not url or "tiktok" not in url:
         return JSONResponse({"success": False, "error": "Invalid TikTok URL"})
 
