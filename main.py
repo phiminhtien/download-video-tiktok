@@ -23,19 +23,28 @@ def fetch_images_from_page(url: str) -> list[str] | None:
     session = requests.Session()
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": "https://www.tiktok.com/",
     })
     try:
         session.get("https://www.tiktok.com/", timeout=10)
-        resp = session.get(url, timeout=15)
-        m = re.search(r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', resp.text, re.DOTALL)
-        if not m:
-            return None
-        data = json.loads(m.group(1))
-        s = json.dumps(data)
-        urls = re.findall(r'"(https?://p\d+\.muscdn\.com/img/[^"]+)"', s)
-        seen = set()
-        return [u for u in urls if not (u in seen or seen.add(u))]
+        for attempt in range(3):
+            resp = session.get(url, timeout=15)
+            if len(resp.text) < 50000:
+                continue
+            m = re.search(r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', resp.text, re.DOTALL)
+            if not m:
+                continue
+            data = json.loads(m.group(1))
+            s = json.dumps(data)
+            urls = re.findall(r'"(https?://p\d+\.muscdn\.com/img/[^"]+)"', s)
+            seen = set()
+            unique = [u for u in urls if not (u in seen or seen.add(u))]
+            if unique:
+                return unique
+        return None
     except Exception as e:
         print(f"  Error: {e}")
     return None
