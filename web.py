@@ -2,7 +2,9 @@ import os
 import re
 import sys
 import subprocess
+import json
 
+import requests
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,43 +33,48 @@ def extract_post_id(url: str) -> str | None:
     return None
 
 
-def download_photo_via_ytdlp(url: str) -> dict:
-    """Download photo slideshow (audio + thumbnail) via yt-dlp."""
-    url = url.replace("/photo/", "/video/")
-    output_base = os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s")
-
-    cmd = [
-        sys.executable, "-m", "yt_dlp",
-        url,
-        "-o", output_base,
-        "--write-thumbnail",
-        "-f", "audio",
-        "--no-playlist",
-        "--no-warnings",
-    ]
+def download_photo_via_tikwm(url: str) -> dict:
+    """Download all images from TikTok photo slideshow via tikwm.com API."""
+    post_id = extract_post_id(url) or "unknown"
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            post_id = extract_post_id(url)
-            if not post_id:
-                return {"success": False, "error": "Could not extract post ID"}
+        resp = requests.post(
+            "https://www.tikwm.com/api/",
+            data={"url": url, "count": 20, "hd": 1},
+            timeout=30,
+        )
+        data = resp.json()
+        if data.get("code") != 0:
+            return {"success": False, "error": data.get("msg", "API error")}
 
-            # Find all files matching this post_id
-            pattern = re.compile(re.escape(post_id) + r"\.[a-zA-Z0-9]+")
-            files = sorted([f for f in os.listdir(DOWNLOAD_DIR) if pattern.match(f)])
-            files = [os.path.join(DOWNLOAD_DIR, f) for f in files if os.path.exists(os.path.join(DOWNLOAD_DIR, f))]
+        images = data.get("data", {}).get("images", [])
+        if not images:
+            return {"success": False, "error": "No images found in this post"}
 
-            if files:
-                total_size = sum(os.path.getsize(f) for f in files)
-                return {
-                    "success": True,
-                    "type": "slideshow",
-                    "files": [os.path.basename(f) for f in files],
-                    "size_mb": round(total_size / 1024 / 1024, 2),
-                }
-        return {"success": False, "error": result.stderr.strip() or "Download failed"}
-    except subprocess.TimeoutExpired:
-        return {"success": False, "error": "Download timed out"}
+        files = []
+        total_size = 0
+        for i, img_url in enumerate(images, 1):
+            img_resp = requests.get(img_url, timeout=30, stream=True)
+            img_resp.raise_for_status()
+            ext = img_resp.headers.get("Content-Type", "image/jpeg").split("/")[-1].split(";")[0]
+            if ext not in ("jpeg", "jpg", "png", "webp"):
+                ext = "jpg"
+            filename = f"{post_id}_{i:03d}.{ext}"
+            filepath = os.path.join(DOWNLOAD_DIR, filename)
+            with open(filepath, "wb") as f:
+                for chunk in img_resp.iter_content(8192):
+                    f.write(chunk)
+            size = os.path.getsize(filepath)
+            total_size += size
+            files.append(filename)
+
+        return {
+            "success": True,
+            "type": "images",
+            "files": files,
+            "size_mb": round(total_size / 1024 / 1024, 2),
+        }
+    except requests.RequestException as e:
+        return {"success": False, "error": f"API request failed: {e}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -116,7 +123,7 @@ async def api_download(url: str = Form(...)):
         return JSONResponse({"success": False, "error": "Invalid TikTok URL"})
 
     if is_photo_url(url):
-        result = download_photo_via_ytdlp(url)
+        result = download_photo_via_tikwm(url)
         return JSONResponse(result)
 
     result = download_ytdlp(url)

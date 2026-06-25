@@ -2,6 +2,7 @@ import sys
 import os
 import re
 import subprocess
+import requests
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
@@ -31,24 +32,31 @@ def download_ytdlp(url: str) -> list[str] | None:
     return None
 
 
-def download_photo_ytdlp(url: str) -> list[str] | None:
-    output_template = os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s")
-    cmd = [
-        sys.executable, "-m", "yt_dlp", url, "-o", output_template,
-        "--write-thumbnail", "-f", "audio", "--no-playlist", "--no-warnings",
-    ]
+def download_photo_tikwm(url: str) -> list[str] | None:
+    post_id = extract_post_id(url) or "unknown"
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            post_id = extract_post_id(url)
-            if post_id:
-                pattern = re.compile(re.escape(post_id) + r"\.[a-zA-Z0-9]+")
-                files = sorted([f for f in os.listdir(DOWNLOAD_DIR) if pattern.match(f)])
-                return [os.path.join(DOWNLOAD_DIR, f) for f in files] or None
+        resp = requests.post("https://www.tikwm.com/api/", data={"url": url, "count": 20, "hd": 1}, timeout=30)
+        data = resp.json()
+        if data.get("code") != 0:
+            print(f"  API error: {data.get('msg')}")
             return None
-        print(f"  yt-dlp error: {result.stderr.strip()}")
-    except subprocess.TimeoutExpired:
-        print("  Download timed out.")
+        images = data.get("data", {}).get("images", [])
+        if not images:
+            print("  No images found.")
+            return None
+        files = []
+        for i, img_url in enumerate(images, 1):
+            r = requests.get(img_url, timeout=30, stream=True)
+            r.raise_for_status()
+            ext = r.headers.get("Content-Type", "image/jpeg").split("/")[-1].split(";")[0]
+            if ext not in ("jpeg", "jpg", "png", "webp"):
+                ext = "jpg"
+            fp = os.path.join(DOWNLOAD_DIR, f"{post_id}_{i:03d}.{ext}")
+            with open(fp, "wb") as f:
+                for chunk in r.iter_content(8192):
+                    f.write(chunk)
+            files.append(fp)
+        return files or None
     except Exception as e:
         print(f"  Error: {e}")
     return None
@@ -72,8 +80,10 @@ def main():
     print(f"\n  URL: {tiktok_url}")
 
     print("\n  Downloading...")
-    tiktok_url = tiktok_url.replace("/photo/", "/video/")
-    files = download_photo_ytdlp(tiktok_url) if "/photo/" in tiktok_url else download_ytdlp(tiktok_url)
+    if "/photo/" in tiktok_url:
+        files = download_photo_tikwm(tiktok_url)
+    else:
+        files = download_ytdlp(tiktok_url)
 
     if files:
         total = sum(os.path.getsize(f) for f in files)
