@@ -221,28 +221,41 @@
                     const previewArea = document.getElementById('previewArea');
                     previewArea.innerHTML = '';
 
-                    if (data.type === 'video') {
+                    const imgExts = ['.jpg', '.jpeg', '.png', '.webp'];
+                    const vidExts = ['.mp4', '.webm', '.mkv', '.mov'];
+                    const images = data.files.filter(f => imgExts.some(e => f.toLowerCase().endsWith(e)));
+                    const videos = data.files.filter(f => vidExts.some(e => f.toLowerCase().endsWith(e)));
+                    const audios = data.files.filter(f => !imgExts.some(e => f.toLowerCase().endsWith(e)) && !vidExts.some(e => f.toLowerCase().endsWith(e)));
+
+                    if (data.type === 'video' || videos.length > 0) {
                         const video = document.createElement('video');
                         video.controls = true;
                         video.playsInline = true;
-                        video.src = `/downloads/${data.files[0]}`;
+                        video.src = `/downloads/${videos[0] || data.files[0]}`;
                         previewArea.appendChild(video);
                         document.getElementById('resultActions').innerHTML =
-                            `<a class="btn-download" href="/downloads/${data.files[0]}" download>Tải video</a>`;
+                            `<a class="btn-download" href="/downloads/${videos[0] || data.files[0]}" download>Tải video</a>`;
                     } else {
-                        const gallery = document.createElement('div');
-                        gallery.className = 'image-gallery';
-                        data.files.forEach(f => {
-                            const img = document.createElement('img');
-                            img.src = `/downloads/${f}`;
-                            img.alt = f;
-                            gallery.appendChild(img);
-                        });
-                        previewArea.appendChild(gallery);
-                        document.getElementById('resultActions').innerHTML =
-                            data.files.map(f =>
-                                `<a class="btn-download" href="/downloads/${f}" download>Tải ảnh</a>`
+                        if (images.length > 0) {
+                            const gallery = document.createElement('div');
+                            gallery.className = 'image-gallery';
+                            images.forEach(f => {
+                                const img = document.createElement('img');
+                                img.src = `/downloads/${f}`;
+                                img.alt = f;
+                                gallery.appendChild(img);
+                            });
+                            previewArea.appendChild(gallery);
+                        }
+                        let actions = images.map(f =>
+                            `<a class="btn-download" href="/downloads/${f}" download>Tải ảnh</a>`
+                        ).join(' ');
+                        if (audios.length > 0) {
+                            actions += audios.map(f =>
+                                `<a class="btn-download" style="background:linear-gradient(135deg,#7c4dff,#651fff)" href="/downloads/${f}" download>Tải nhạc</a>`
                             ).join(' ');
+                        }
+                        document.getElementById('resultActions').innerHTML = actions;
                     }
                 } else {
                     showStatus('Lỗi: ' + data.error + '<div class="hint">Thử cập nhật: py -m pip install -U yt-dlp</div>', true);

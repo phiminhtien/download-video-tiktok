@@ -2,10 +2,7 @@ import os
 import re
 import sys
 import subprocess
-import json
-import uuid
 
-import requests
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -34,71 +31,45 @@ def extract_post_id(url: str) -> str | None:
     return None
 
 
-def fetch_images_from_page(url: str) -> list[str] | None:
-    """Scrape image URLs from a TikTok photo slideshow page."""
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer": "https://www.tiktok.com/",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-    })
+def download_photo_via_ytdlp(url: str) -> dict:
+    """Download photo slideshow (audio + thumbnail) via yt-dlp."""
+    url = url.replace("/photo/", "/video/")
+    output_base = os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s")
+
+    cmd = [
+        sys.executable, "-m", "yt_dlp",
+        url,
+        "-o", output_base,
+        "--write-thumbnail",
+        "-f", "audio",
+        "--no-playlist",
+        "--no-warnings",
+    ]
     try:
-        session.get("https://www.tiktok.com/", timeout=10)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            post_id = extract_post_id(url)
+            if not post_id:
+                return {"success": False, "error": "Could not extract post ID"}
 
-        for attempt in range(3):
-            resp = session.get(url, timeout=15)
-            if len(resp.text) < 50000:
-                continue
+            # Find all files matching this post_id
+            pattern = re.compile(re.escape(post_id) + r"\.[a-zA-Z0-9]+")
+            files = sorted([f for f in os.listdir(DOWNLOAD_DIR) if pattern.match(f)])
+            files = [os.path.join(DOWNLOAD_DIR, f) for f in files if os.path.exists(os.path.join(DOWNLOAD_DIR, f))]
 
-            m = re.search(r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', resp.text, re.DOTALL)
-            if not m:
-                continue
-
-            data = json.loads(m.group(1))
-            s = json.dumps(data)
-
-            urls = re.findall(r'"(https?://p\d+\.muscdn\.com/img/[^"]+)"', s)
-            seen = set()
-            unique = [u for u in urls if not (u in seen or seen.add(u))]
-            if unique:
-                return unique
-
-        return None
-
+            if files:
+                total_size = sum(os.path.getsize(f) for f in files)
+                return {
+                    "success": True,
+                    "type": "slideshow",
+                    "files": [os.path.basename(f) for f in files],
+                    "size_mb": round(total_size / 1024 / 1024, 2),
+                }
+        return {"success": False, "error": result.stderr.strip() or "Download failed"}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Download timed out"}
     except Exception as e:
-        print(f"  Scrape error: {e}")
-    return None
-
-
-def download_images(images: list[str], post_id: str) -> list[str]:
-    files = []
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://www.tiktok.com/",
-    }
-    for i, img_url in enumerate(images):
-        try:
-            resp = requests.get(img_url, headers=headers, stream=True, timeout=30)
-            resp.raise_for_status()
-            content_type = resp.headers.get("Content-Type", "image/webp")
-            ext = content_type.split("/")[-1].split(";")[0] or "webp"
-            filename = f"{post_id}_{i+1:05d}.{ext}"
-            filepath = os.path.join(DOWNLOAD_DIR, filename)
-            with open(filepath, "wb") as f:
-                for chunk in resp.iter_content(8192):
-                    if chunk:
-                        f.write(chunk)
-            files.append(filepath)
-        except Exception as e:
-            print(f"  Image download error ({i}): {e}")
-    return files
+        return {"success": False, "error": str(e)}
 
 
 def download_ytdlp(url: str) -> dict:
@@ -145,19 +116,8 @@ async def api_download(url: str = Form(...)):
         return JSONResponse({"success": False, "error": "Invalid TikTok URL"})
 
     if is_photo_url(url):
-        post_id = extract_post_id(url) or uuid.uuid4().hex[:8]
-        images = fetch_images_from_page(url)
-        if images:
-            files = download_images(images, post_id)
-            if files:
-                total_size = sum(os.path.getsize(f) for f in files)
-                return JSONResponse({
-                    "success": True,
-                    "type": "images",
-                    "files": [os.path.basename(f) for f in files],
-                    "size_mb": round(total_size / 1024 / 1024, 2),
-                })
-        return JSONResponse({"success": False, "error": "Could not extract images from this post"})
+        result = download_photo_via_ytdlp(url)
+        return JSONResponse(result)
 
     result = download_ytdlp(url)
     return JSONResponse(result)
