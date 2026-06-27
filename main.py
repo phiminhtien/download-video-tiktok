@@ -56,6 +56,24 @@ def download_photo_tikwm(url: str) -> list[str] | None:
                 for chunk in r.iter_content(8192):
                     f.write(chunk)
             files.append(fp)
+
+        # Download audio
+        music_url = data.get("data", {}).get("music", "") or data.get("data", {}).get("music_info", {}).get("play", "")
+        if music_url:
+            try:
+                r = requests.get(music_url, timeout=30, stream=True)
+                r.raise_for_status()
+                audio_ext = r.headers.get("Content-Type", "audio/mpeg").split("/")[-1].split(";")[0]
+                if audio_ext not in ("mp3", "m4a", "aac", "wav"):
+                    audio_ext = "mp3"
+                fp = os.path.join(DOWNLOAD_DIR, f"{post_id}_audio.{audio_ext}")
+                with open(fp, "wb") as f:
+                    for chunk in r.iter_content(8192):
+                        f.write(chunk)
+                files.append(fp)
+            except Exception as e:
+                print(f"  Audio download failed: {e}")
+
         return files or None
     except Exception as e:
         print(f"  Error: {e}")
