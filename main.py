@@ -16,8 +16,16 @@ def extract_post_id(url: str) -> str | None:
     return None
 
 
+def ensure_dir(subdir: str) -> str:
+    path = os.path.join(DOWNLOAD_DIR, subdir)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def download_ytdlp(url: str) -> list[str] | None:
-    output_template = os.path.join(DOWNLOAD_DIR, "%(id)s_%(autonumber)s.%(ext)s")
+    post_id = extract_post_id(url) or "video"
+    out_dir = ensure_dir(post_id)
+    output_template = os.path.join(out_dir, "%(id)s.%(ext)s")
     cmd = [sys.executable, "-m", "yt_dlp", url, "-o", output_template, "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
@@ -34,6 +42,7 @@ def download_ytdlp(url: str) -> list[str] | None:
 
 def download_photo_tikwm(url: str) -> list[str] | None:
     post_id = extract_post_id(url) or "unknown"
+    out_dir = ensure_dir(post_id)
     try:
         resp = requests.post("https://www.tikwm.com/api/", data={"url": url, "count": 20, "hd": 1}, timeout=30)
         data = resp.json()
@@ -51,13 +60,12 @@ def download_photo_tikwm(url: str) -> list[str] | None:
             ext = r.headers.get("Content-Type", "image/jpeg").split("/")[-1].split(";")[0]
             if ext not in ("jpeg", "jpg", "png", "webp"):
                 ext = "jpg"
-            fp = os.path.join(DOWNLOAD_DIR, f"{post_id}_{i:03d}.{ext}")
+            fp = os.path.join(out_dir, f"{i:03d}.{ext}")
             with open(fp, "wb") as f:
                 for chunk in r.iter_content(8192):
                     f.write(chunk)
             files.append(fp)
 
-        # Download audio
         music_url = data.get("data", {}).get("music", "") or data.get("data", {}).get("music_info", {}).get("play", "")
         if music_url:
             try:
@@ -66,7 +74,7 @@ def download_photo_tikwm(url: str) -> list[str] | None:
                 audio_ext = r.headers.get("Content-Type", "audio/mpeg").split("/")[-1].split(";")[0]
                 if audio_ext not in ("mp3", "m4a", "aac", "wav"):
                     audio_ext = "mp3"
-                fp = os.path.join(DOWNLOAD_DIR, f"{post_id}_audio.{audio_ext}")
+                fp = os.path.join(out_dir, f"audio.{audio_ext}")
                 with open(fp, "wb") as f:
                     for chunk in r.iter_content(8192):
                         f.write(chunk)
@@ -106,11 +114,11 @@ def main():
     if files:
         total = sum(os.path.getsize(f) for f in files)
         print(f"\n  Done! ({len(files)} file(s), {total/1024/1024:.2f} MB)")
+        print(f"  Folder: {os.path.dirname(files[0])}\\")
         for f in files:
-            print(f"    - {f}")
+            print(f"    - {os.path.basename(f)}")
     else:
-        print("\n  Download failed. Try updating yt-dlp:")
-        print(f"    {sys.executable} -m pip install -U yt-dlp")
+        print("\n  Download failed.")
         sys.exit(1)
 
 

@@ -442,6 +442,7 @@
                 <span class="result-badge" id="resultBadge"></span>
                 <span class="result-size" id="resultSize"></span>
             </div>
+            <div id="folderInfo" style="padding:0 20px;margin-top:-8px;margin-bottom:8px;font-size:12px;color:var(--text2);display:none;"></div>
             <div class="result-preview" id="previewArea"></div>
             <div class="result-files" id="fileList"></div>
             <div class="result-actions" id="resultActions"></div>
@@ -552,6 +553,15 @@
 
                 document.getElementById('resultSize').textContent = formatSize(data.size_mb);
 
+                const folder = data.folder || '';
+                const folderInfo = document.getElementById('folderInfo');
+                if (folder) {
+                    folderInfo.textContent = `📁 downloads/${folder}/`;
+                    folderInfo.style.display = 'block';
+                } else {
+                    folderInfo.style.display = 'none';
+                }
+
                 // Preview
                 const preview = document.getElementById('previewArea');
                 preview.innerHTML = '';
@@ -578,25 +588,27 @@
                     preview.appendChild(gallery);
                 }
 
-                // File list
-                const fileEl = document.getElementById('fileList');
-                fileEl.innerHTML = '';
-                data.files.forEach(f => {
-                    const ext = getExt(f);
-                    let icon = '📄', cls = 'img';
-                    if (isVid(f)) { icon = '🎬'; cls = 'vid'; }
-                    else if (isAud(f)) { icon = '🎵'; cls = 'aud'; }
-                    else if (isImg(f)) { icon = '🖼'; cls = 'img'; }
+                    // File list
+                    const fileEl = document.getElementById('fileList');
+                    fileEl.innerHTML = '';
+                    const folder = data.folder || '';
+                    data.files.forEach(f => {
+                        const fname = f.includes('/') ? f.split('/').pop() : f;
+                        const ext = getExt(fname);
+                        let icon = '📄', cls = 'img';
+                        if (isVid(f)) { icon = '🎬'; cls = 'vid'; }
+                        else if (isAud(f)) { icon = '🎵'; cls = 'aud'; }
+                        else if (isImg(f)) { icon = '🖼'; cls = 'img'; }
 
-                    fileEl.innerHTML += `
-                        <div class="file-row">
-                            <div class="file-info">
-                                <div class="file-icon ${cls}">${icon}</div>
-                                <div class="file-name">${f}</div>
-                            </div>
-                            <a href="/downloads/${f}" download class="btn-action ${cls === 'aud' ? 'purple' : 'green'}" style="flex:0;padding:8px 16px;font-size:12px;">Tải xuống</a>
-                        </div>`;
-                });
+                        fileEl.innerHTML += `
+                            <div class="file-row">
+                                <div class="file-info">
+                                    <div class="file-icon ${cls}">${icon}</div>
+                                    <div class="file-name">${fname}</div>
+                                </div>
+                                <a href="/downloads/${f}" download class="btn-action ${cls === 'aud' ? 'purple' : 'green'}" style="flex:0;padding:8px 16px;font-size:12px;">Tải</a>
+                            </div>`;
+                    });
 
                 // Action buttons
                 const actions = document.getElementById('resultActions');

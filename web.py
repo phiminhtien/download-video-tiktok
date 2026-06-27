@@ -2,11 +2,10 @@ import os
 import re
 import sys
 import subprocess
-import json
 
 import requests
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -33,9 +32,16 @@ def extract_post_id(url: str) -> str | None:
     return None
 
 
+def ensure_dir(subdir: str) -> str:
+    path = os.path.join(DOWNLOAD_DIR, subdir)
+    os.makedirs(path, exist_ok=True)
+    return path
+
 def download_photo_via_tikwm(url: str) -> dict:
     """Download all images + audio from TikTok photo slideshow via tikwm.com API."""
     post_id = extract_post_id(url) or "unknown"
+    folder = post_id
+    out_dir = ensure_dir(folder)
     try:
         resp = requests.post(
             "https://www.tikwm.com/api/",
@@ -58,14 +64,14 @@ def download_photo_via_tikwm(url: str) -> dict:
             ext = img_resp.headers.get("Content-Type", "image/jpeg").split("/")[-1].split(";")[0]
             if ext not in ("jpeg", "jpg", "png", "webp"):
                 ext = "jpg"
-            filename = f"{post_id}_{i:03d}.{ext}"
-            filepath = os.path.join(DOWNLOAD_DIR, filename)
+            filename = f"{i:03d}.{ext}"
+            filepath = os.path.join(out_dir, filename)
             with open(filepath, "wb") as f:
                 for chunk in img_resp.iter_content(8192):
                     f.write(chunk)
             size = os.path.getsize(filepath)
             total_size += size
-            files.append(filename)
+            files.append(f"{folder}/{filename}")
 
         # Also download audio (music)
         music_url = data.get("data", {}).get("music", "") or data.get("data", {}).get("music_info", {}).get("play", "")
@@ -76,14 +82,14 @@ def download_photo_via_tikwm(url: str) -> dict:
                 audio_ext = audio_resp.headers.get("Content-Type", "audio/mpeg").split("/")[-1].split(";")[0]
                 if audio_ext not in ("mp3", "m4a", "aac", "wav"):
                     audio_ext = "mp3"
-                audio_name = f"{post_id}_audio.{audio_ext}"
-                audio_path = os.path.join(DOWNLOAD_DIR, audio_name)
+                audio_name = f"audio.{audio_ext}"
+                audio_path = os.path.join(out_dir, audio_name)
                 with open(audio_path, "wb") as f:
                     for chunk in audio_resp.iter_content(8192):
                         f.write(chunk)
                 audio_size = os.path.getsize(audio_path)
                 total_size += audio_size
-                files.append(audio_name)
+                files.append(f"{folder}/{audio_name}")
             except Exception as e:
                 print(f"  Audio download failed: {e}")
 
@@ -92,6 +98,7 @@ def download_photo_via_tikwm(url: str) -> dict:
             "type": "images",
             "files": files,
             "size_mb": round(total_size / 1024 / 1024, 2),
+            "folder": folder,
         }
     except requests.RequestException as e:
         return {"success": False, "error": f"API request failed: {e}"}
@@ -101,7 +108,9 @@ def download_photo_via_tikwm(url: str) -> dict:
 
 def download_ytdlp(url: str) -> dict:
     """Download via yt-dlp (for videos)."""
-    output_template = os.path.join(DOWNLOAD_DIR, "%(id)s_%(autonumber)s.%(ext)s")
+    post_id = extract_post_id(url) or "video"
+    out_dir = ensure_dir(post_id)
+    output_template = os.path.join(out_dir, "%(id)s.%(ext)s")
     cmd = [
         sys.executable, "-m", "yt_dlp",
         url,
@@ -121,8 +130,9 @@ def download_ytdlp(url: str) -> dict:
                 return {
                     "success": True,
                     "type": "video" if is_video else "images",
-                    "files": [os.path.basename(f) for f in files],
+                    "files": [f"{post_id}/{os.path.basename(f)}" for f in files],
                     "size_mb": round(total_size / 1024 / 1024, 2),
+                    "folder": post_id,
                 }
         return {"success": False, "error": result.stderr.strip() or "Download failed"}
     except subprocess.TimeoutExpired:
@@ -148,14 +158,6 @@ async def api_download(url: str = Form(...)):
 
     result = download_ytdlp(url)
     return JSONResponse(result)
-
-
-@app.get("/download/{filename}")
-async def download_file(filename: str):
-    filepath = os.path.join(DOWNLOAD_DIR, filename)
-    if os.path.exists(filepath):
-        return FileResponse(filepath, filename=filename)
-    return JSONResponse({"error": "File not found"}, status_code=404)
 
 
 if __name__ == "__main__":
