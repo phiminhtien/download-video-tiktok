@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok Downloader</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎵</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a26;
+            --border: rgba(255,255,255,0.06);
+            --text: #e8e8ed;
+            --text2: #8888a0;
+            --accent: #fe2c55;
+            --accent2: #25f4ee;
+            --success: #00c853;
+            --radius: 16px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .bg-glow {
+            position: fixed;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(254,44,85,0.12) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .app {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 520px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #fe2c55, #25f4ee);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 32px rgba(254,44,85,0.25);
+        }
+
+        .logo h1 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .logo p {
+            color: var(--text2);
+            font-size: 14px;
+            margin-top: 6px;
+        }
+
+        .search-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 6px;
+            display: flex;
+            gap: 6px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .search-box:focus-within {
+            border-color: rgba(254,44,85,0.4);
+            box-shadow: 0 0 0 3px rgba(254,44,85,0.08);
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 14px 16px;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 15px;
+            outline: none;
+        }
+
+        .search-box input::placeholder { color: var(--text2); }
+
+        .btn-download-main {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #fe2c55, #ff6a88);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .btn-download-main:hover {
+            transform: scale(1.03);
+            box-shadow: 0 4px 20px rgba(254,44,85,0.4);
+        }
+
+        .btn-download-main:active { transform: scale(0.97); }
+        .btn-download-main:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .drop-hint {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 13px;
+            color: var(--text2);
+        }
+
+        /* Status / Loading */
+        .status {
+            margin-top: 24px;
+            display: none;
+        }
+
+        .status.show { display: block; }
+
+        .status-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .status-text { color: var(--text2); font-size: 14px; }
+
+        /* Error */
+        .status-box.error {
+            background: rgba(254,44,85,0.06);
+            border-color: rgba(254,44,85,0.2);
+        }
+
+        .error-msg { color: var(--accent); font-size: 14px; line-height: 1.6; }
+        .error-hint { color: var(--text2); font-size: 12px; margin-top: 8px; }
+
+        /* Result Card */
+        .result {
+            display: none;
+            margin-top: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            animation: slideUp 0.4s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result.show { display: block; }
+
+        .result-header {
+            padding: 20px 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .result-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-video { background: rgba(0,200,83,0.12); color: #00c853; }
+        .badge-images { background: rgba(37,244,238,0.12); color: #25f4ee; }
+
+        .result-size {
+            font-size: 12px;
+            color: var(--text2);
+        }
+
+        .result-preview {
+            padding: 16px 20px;
+        }
+
+        .result-preview video {
+            width: 100%;
+            border-radius: 12px;
+            background: #000;
+            max-height: 480px;
+        }
+
+        .image-gallery {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+            padding-bottom: 4px;
+        }
+
+        .image-gallery::-webkit-scrollbar { height: 4px; }
+        .image-gallery::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .image-gallery img {
+            height: 280px;
+            border-radius: 10px;
+            scroll-snap-align: start;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .image-gallery img:hover { transform: scale(1.02); }
+
+        .result-files {
+            padding: 0 20px;
+        }
+
+        .file-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .file-row:first-child { border-top: 1px solid var(--border); }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .file-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .file-icon.img { background: rgba(37,244,238,0.1); }
+        .file-icon.vid { background: rgba(0,200,83,0.1); }
+        .file-icon.aud { background: rgba(124,77,255,0.1); }
+
+        .file-name {
+            font-size: 13px;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .result-actions {
+            padding: 16px 20px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-action {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            text-decoration: none;
+            color: #fff;
+        }
+
+        .btn-action:hover { transform: translateY(-1px); }
+        .btn-action.green { background: var(--success); }
+        .btn-action.green:hover { box-shadow: 0 4px 16px rgba(0,200,83,0.3); }
+        .btn-action.purple { background: #7c4dff; }
+        .btn-action.purple:hover { box-shadow: 0 4px 16px rgba(124,77,255,0.3); }
+        .btn-action.gradient { background: linear-gradient(135deg, #fe2c55, #ff6a88); }
+        .btn-action.gradient:hover { box-shadow: 0 4px 16px rgba(254,44,85,0.3); }
+
+        .footer {
+            text-align: center;
+            margin-top: 48px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.2);
+        }
+
+        /* Lightbox */
+        .lightbox {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            animation: fadeIn 0.2s;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .lightbox.show { display: flex; }
+
+        .lightbox img {
+            max-width: 92vw;
+            max-height: 92vh;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        .lightbox-close {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lightbox-nav {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lightbox-nav:hover { background: rgba(255,255,255,0.2); }
+        .lightbox-prev { left: 16px; }
+        .lightbox-next { right: 16px; }
+        .lightbox-counter {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.7);
+            font-size: 14px;
+        }
+
+        @media (max-width: 480px) {
+            .logo h1 { font-size: 22px; }
+            .search-box { flex-direction: column; padding: 4px; }
+            .btn-download-main { width: 100%; justify-content: center; }
+            .image-gallery img { height: 220px; }
+            .result-actions { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+
+    <div class="app">
+        <div class="logo">
+            <div class="logo-icon">🎵</div>
+            <h1>TikTok Downloader</h1>
+            <p>Tải video và ảnh TikTok không watermark</p>
+        </div>
+
+        <div class="search-box" id="searchBox">
+            <input type="text" id="urlInput" placeholder="Dán link TikTok vào đây..." autofocus>
+            <button class="btn-download-main" id="downloadBtn" onclick="startDownload()">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Tải
+            </button>
+        </div>
+
+        <p class="drop-hint">Hỗ trợ link video, photo slideshow, và slideshow</p>
+
+        <div class="status show" id="status"></div>
+
+        <div class="result" id="result">
+            <div class="result-header">
+                <span class="result-badge" id="resultBadge"></span>
+                <span class="result-size" id="resultSize"></span>
+            </div>
+            <div id="folderInfo" style="padding:0 20px;margin-top:-8px;margin-bottom:8px;font-size:12px;color:var(--text2);display:none;"></div>
+            <div class="result-preview" id="previewArea"></div>
+            <div class="result-files" id="fileList"></div>
+            <div class="result-actions" id="resultActions"></div>
+        </div>
+    </div>
+
+    <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+        <button class="lightbox-close" onclick="closeLightbox(event)">✕</button>
+        <button class="lightbox-nav lightbox-prev" onclick="navLightbox(-1, event)">‹</button>
+        <button class="lightbox-nav lightbox-next" onclick="navLightbox(1, event)">›</button>
+        <img id="lightboxImg" src="">
+        <div class="lightbox-counter" id="lightboxCounter"></div>
+    </div>
+
+    <footer class="footer">Powered by yt-dlp & tikwm</footer>
+
+    <script>
+        let currentImages = [];
+        let currentIdx = 0;
+
+        function getExt(f) { return f.split('.').pop().toLowerCase(); }
+        function isImg(f) { return ['jpg','jpeg','png','webp'].includes(getExt(f)); }
+        function isVid(f) { return ['mp4','webm','mkv','mov'].includes(getExt(f)); }
+        function isAud(f) { return !isImg(f) && !isVid(f); }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('status');
+            el.className = 'status show';
+            if (type === 'loading') {
+                el.innerHTML = `<div class="status-box"><div class="spinner"></div><div class="status-text">${msg}</div></div>`;
+            } else if (type === 'error') {
+                el.innerHTML = `<div class="status-box error"><div class="error-msg">${msg}</div><div class="error-hint">Thử cập nhật: py -m pip install -U yt-dlp</div></div>`;
+            }
+        }
+
+        function hideStatus() {
+            document.getElementById('status').className = 'status';
+        }
+
+        function formatSize(mb) { return mb >= 1 ? mb + ' MB' : (mb * 1024).toFixed(0) + ' KB'; }
+
+        function openLightbox(src, idx) {
+            currentIdx = idx;
+            const lb = document.getElementById('lightbox');
+            document.getElementById('lightboxImg').src = src;
+            document.getElementById('lightboxCounter').textContent = `${idx + 1} / ${currentImages.length}`;
+            lb.className = 'lightbox show';
+        }
+
+        function closeLightbox(e) {
+            if (e.target.tagName !== 'IMG') document.getElementById('lightbox').className = 'lightbox';
+        }
+
+        function navLightbox(dir, e) {
+            e.stopPropagation();
+            currentIdx = (currentIdx + dir + currentImages.length) % currentImages.length;
+            document.getElementById('lightboxImg').src = currentImages[currentIdx];
+            document.getElementById('lightboxCounter').textContent = `${currentIdx + 1} / ${currentImages.length}`;
+        }
+
+        document.addEventListener('keydown', e => {
+            if (!document.getElementById('lightbox').classList.contains('show')) return;
+            if (e.key === 'Escape') document.getElementById('lightbox').className = 'lightbox';
+            if (e.key === 'ArrowLeft') navLightbox(-1, e);
+            if (e.key === 'ArrowRight') navLightbox(1, e);
+        });
+
+        async function startDownload() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url || !url.includes('tiktok')) {
+                showStatus('Vui lòng nhập link TikTok hợp lệ', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('downloadBtn');
+            btn.disabled = true;
+            document.getElementById('result').className = 'result';
+            showStatus('Đang tải...', 'loading');
+
+            try {
+                const resp = await fetch('/api/download', {
+                    method: 'POST',
+                    body: new URLSearchParams({ url })
+                });
+                const data = await resp.json();
+
+                if (!data.success) {
+                    showStatus(data.error || 'Tải thất bại', 'error');
+                    return;
+                }
+
+                hideStatus();
+
+                const images = data.files.filter(isImg);
+                const videos = data.files.filter(isVid);
+                const audios = data.files.filter(isAud);
+                const isVideo = data.type === 'video' || videos.length > 0;
+
+                // Badge
+                const badge = document.getElementById('resultBadge');
+                if (isVideo) {
+                    badge.className = 'result-badge badge-video';
+                    badge.innerHTML = '🎬 Video';
+                } else {
+                    badge.className = 'result-badge badge-images';
+                    badge.innerHTML = '🖼 Ảnh slideshow';
+                }
+
+                document.getElementById('resultSize').textContent = formatSize(data.size_mb);
+
+                const folder = data.folder || '';
+                const folderInfo = document.getElementById('folderInfo');
+                if (folder) {
+                    folderInfo.textContent = `📁 downloads/${folder}/`;
+                    folderInfo.style.display = 'block';
+                } else {
+                    folderInfo.style.display = 'none';
+                }
+
+                // Preview
+                const preview = document.getElementById('previewArea');
+                preview.innerHTML = '';
+                currentImages = [];
+
+                if (isVideo) {
+                    const v = document.createElement('video');
+                    v.controls = true; v.playsInline = true; v.preload = 'metadata';
+                    v.src = `/downloads/${videos[0] || data.files[0]}`;
+                    preview.appendChild(v);
+                } else if (images.length > 0) {
+                    const gallery = document.createElement('div');
+                    gallery.className = 'image-gallery';
+                    images.forEach((f, i) => {
+                        const img = document.createElement('img');
+                        img.src = `/downloads/${f}`;
+                        img.alt = `Ảnh ${i+1}`;
+                        img.loading = 'lazy';
+                        const fullSrc = `/downloads/${f}`;
+                        currentImages.push(fullSrc);
+                        img.onclick = () => openLightbox(fullSrc, i);
+                        gallery.appendChild(img);
+                    });
+                    preview.appendChild(gallery);
+                }
+
+                    // File list
+                    const fileEl = document.getElementById('fileList');
+                    fileEl.innerHTML = '';
+                    const folder = data.folder || '';
+                    data.files.forEach(f => {
+                        const fname = f.includes('/') ? f.split('/').pop() : f;
+                        const ext = getExt(fname);
+                        let icon = '📄', cls = 'img';
+                        if (isVid(f)) { icon = '🎬'; cls = 'vid'; }
+                        else if (isAud(f)) { icon = '🎵'; cls = 'aud'; }
+                        else if (isImg(f)) { icon = '🖼'; cls = 'img'; }
+
+                        fileEl.innerHTML += `
+                            <div class="file-row">
+                                <div class="file-info">
+                                    <div class="file-icon ${cls}">${icon}</div>
+                                    <div class="file-name">${fname}</div>
+                                </div>
+                                <a href="/downloads/${f}" download class="btn-action ${cls === 'aud' ? 'purple' : 'green'}" style="flex:0;padding:8px 16px;font-size:12px;">Tải</a>
+                            </div>`;
+                    });
+
+                // Action buttons
+                const actions = document.getElementById('resultActions');
+                actions.innerHTML = '';
+                if (isVideo) {
+                    actions.innerHTML = `<a class="btn-action gradient" href="/downloads/${videos[0] || data.files[0]}" download>⬇ Tải video</a>`;
+                } else {
+                    if (images.length > 1) {
+                        actions.innerHTML += `<a class="btn-action green" href="/downloads/${images[0]}" download>⬇ Ảnh đầu</a>`;
+                    }
+                    if (audios.length > 0) {
+                        actions.innerHTML += `<a class="btn-action purple" href="/downloads/${audios[0]}" download>🎵 Tải nhạc</a>`;
+                    }
+                }
+
+                document.getElementById('result').className = 'result show';
+
+            } catch (e) {
+                showStatus('Lỗi kết nối đến server', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('urlInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') startDownload();
+        });
+    </script>
+</body>
+</html>

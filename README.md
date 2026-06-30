@@ -1,13 +1,28 @@
-# TikTok Video Downloader — No Watermark
+# TikTok Downloader — No Watermark
 
-Download TikTok videos without watermark — CLI and Web UI.
+Download TikTok videos and image slideshows without watermark.
 
 ## Features
 
-- Downloads TikTok videos and image slideshows without watermark
-- Supports short URLs (`vm.tiktok.com`)
-- **CLI mode** — simple command line
-- **Web UI** — beautiful browser interface with video/image preview
+- Download TikTok videos without watermark
+- Download image slideshows with all photos + audio
+- **CLI mode** — command line
+- **Web UI** — browser interface
+- **Docker support** — one command to run
+
+## Project Structure
+
+```
+├── app/                  # Web application
+│   ├── web.py
+│   ├── templates/
+│   └── static/
+├── downloads/            # Downloaded files (auto-created)
+├── main.py               # CLI entry point
+├── requirements.txt
+├── Dockerfile
+└── docker-compose.yml
+```
 
 ## Installation
 
@@ -20,15 +35,21 @@ pip install -r requirements.txt
 ### CLI
 
 ```bash
-python main.py <tiktok-url>
-python main.py  # then paste URL when prompted
+python main.py "https://www.tiktok.com/@user/video/123456789"
 ```
 
-### Web UI
+### Web UI (local)
 
 ```bash
-python web.py
+python app/web.py
 # Open http://127.0.0.1:8000
+```
+
+### Docker
+
+```bash
+docker compose up -d
+# Open http://localhost:8000
 ```
 
 ## Troubleshooting
