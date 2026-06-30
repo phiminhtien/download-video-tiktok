@@ -591,7 +591,6 @@
                     // File list
                     const fileEl = document.getElementById('fileList');
                     fileEl.innerHTML = '';
-                    const folder = data.folder || '';
                     data.files.forEach(f => {
                         const fname = f.includes('/') ? f.split('/').pop() : f;
                         const ext = getExt(fname);
