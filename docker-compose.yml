@@ -5,4 +5,6 @@ services:
       - "8000:8000"
     volumes:
       - ./downloads:/app/downloads
+    environment:
+      - DOWNLOAD_TTL=0
     restart: unless-stopped

@@ -11,4 +11,6 @@ COPY . .
 
 EXPOSE 8000
 
+ENV DOWNLOAD_TTL=0
+
 CMD ["uvicorn", "app.web:app", "--host", "0.0.0.0", "--port", "8000"]
