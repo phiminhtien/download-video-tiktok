@@ -442,7 +442,7 @@
                 <span class="result-badge" id="resultBadge"></span>
                 <span class="result-size" id="resultSize"></span>
             </div>
-            <div id="folderInfo" style="padding:0 20px;margin-top:-8px;margin-bottom:8px;font-size:12px;color:var(--text2);display:none;"></div>
+
             <div class="result-preview" id="previewArea"></div>
             <div class="result-files" id="fileList"></div>
             <div class="result-actions" id="resultActions"></div>
@@ -552,15 +552,6 @@
                 }
 
                 document.getElementById('resultSize').textContent = formatSize(data.size_mb);
-
-                const folder = data.folder || '';
-                const folderInfo = document.getElementById('folderInfo');
-                if (folder) {
-                    folderInfo.textContent = `📁 downloads/${folder}/`;
-                    folderInfo.style.display = 'block';
-                } else {
-                    folderInfo.style.display = 'none';
-                }
 
                 // Preview
                 const preview = document.getElementById('previewArea');
