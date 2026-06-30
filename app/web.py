@@ -2,6 +2,9 @@ import os
 import re
 import sys
 import subprocess
+import shutil
+import threading
+import time
 
 import requests
 from fastapi import FastAPI, Form, Request
@@ -14,11 +17,36 @@ app = FastAPI(title="TikTok Downloader")
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(APP_DIR)
 DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads")
+DOWNLOAD_TTL = int(os.getenv("DOWNLOAD_TTL", "0"))  # hours, 0 = never clean
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 app.mount("/static", StaticFiles(directory=os.path.join(APP_DIR, "static")), name="static")
 app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
+
+
+def cleanup_old():
+    if DOWNLOAD_TTL <= 0:
+        return
+    now = time.time()
+    cutoff = now - DOWNLOAD_TTL * 3600
+    for name in os.listdir(DOWNLOAD_DIR):
+        path = os.path.join(DOWNLOAD_DIR, name)
+        if os.path.isdir(path) and os.path.getmtime(path) < cutoff:
+            shutil.rmtree(path, ignore_errors=True)
+
+
+def start_cleanup():
+    cleanup_old()
+    if DOWNLOAD_TTL > 0:
+        def loop():
+            while True:
+                time.sleep(3600)
+                cleanup_old()
+        threading.Thread(target=loop, daemon=True).start()
+
+
+start_cleanup()
 
 
 def is_photo_url(url: str) -> bool:
