@@ -50,7 +50,11 @@
             position: relative;
             z-index: 1;
             width: 100%;
-            max-width: 520px;
+            max-width: 720px;
+        }
+
+        @media (min-width: 1200px) {
+            .app { max-width: 800px; }
         }
 
         .logo {
@@ -231,7 +235,15 @@
             width: 100%;
             border-radius: 12px;
             background: #000;
-            max-height: 480px;
+            max-height: 640px;
+            object-fit: contain;
+        }
+
+        .result-preview .video-wrap {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
         }
 
         .image-gallery {
@@ -248,7 +260,7 @@
         .image-gallery::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
 
         .image-gallery img {
-            height: 280px;
+            height: 320px;
             border-radius: 10px;
             scroll-snap-align: start;
             flex-shrink: 0;
@@ -412,6 +424,7 @@
             .btn-download-main { width: 100%; justify-content: center; }
             .image-gallery img { height: 220px; }
             .result-actions { flex-direction: column; }
+            .result-preview video { max-height: 400px; }
         }
     </style>
 </head>
