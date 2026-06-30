@@ -2,7 +2,6 @@ import os
 import re
 import sys
 import subprocess
-import tempfile
 
 import requests
 from fastapi import FastAPI, Form, Request
@@ -14,13 +13,7 @@ app = FastAPI(title="TikTok Downloader")
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(APP_DIR)
-
-# SAVE_DIR env: "downloads" (default, persistent) or "temp" (auto-cleaned by OS)
-SAVE_DIR = os.getenv("SAVE_DIR", "downloads")
-if SAVE_DIR == "temp":
-    DOWNLOAD_DIR = os.path.join(tempfile.gettempdir(), "tiktok_download")
-else:
-    DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads")
+DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
