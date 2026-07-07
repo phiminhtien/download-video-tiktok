@@ -1,18 +1,28 @@
-# TikTok Video Downloader — No Watermark
+# TikTok Downloader — No Watermark
 
-A command-line tool to download TikTok videos without the watermark.
+Download TikTok videos and image slideshows without watermark.
 
 ## Features
 
-- Downloads TikTok videos without watermark
-- Supports short URLs (`vm.tiktok.com`)
-- Automatic fallback between yt-dlp and direct scraping
-- Simple CLI interface
+- Download TikTok videos without watermark
+- Download image slideshows with all photos + audio
+- **CLI mode** — command line
+- **Web UI** — browser interface
+- **Docker support** — one command to run
 
-## Requirements
+## Project Structure
 
-- Python 3.10+
-- [ffmpeg](https://ffmpeg.org/download.html) (optional, for best quality)
+```
+├── app/                  # Web application
+│   ├── web.py
+│   ├── templates/
+│   └── static/
+├── downloads/            # Downloaded files (auto-created)
+├── main.py               # CLI entry point
+├── requirements.txt
+├── Dockerfile
+└── docker-compose.yml
+```
 
 ## Installation
 
@@ -22,23 +32,25 @@ pip install -r requirements.txt
 
 ## Usage
 
-```bash
-python main.py <tiktok-url>
-```
-
-Or run without arguments to paste the URL:
+### CLI
 
 ```bash
-python main.py
+python main.py "https://www.tiktok.com/@user/video/123456789"
 ```
 
-### Example
+### Web UI (local)
 
 ```bash
-python main.py https://www.tiktok.com/@user/video/123456789
+python app/web.py
+# Open http://127.0.0.1:8000
 ```
 
-Output is saved to the `downloads/` directory.
+### Docker
+
+```bash
+docker compose up -d
+# Open http://localhost:8000
+```
 
 ## Troubleshooting
 
@@ -46,4 +58,4 @@ Output is saved to the `downloads/` directory.
 pip install -U yt-dlp
 ```
 
-If ffmpeg is missing, download from [ffmpeg.org](https://ffmpeg.org/download.html). Without it, yt-dlp may fall back to lower quality.
+Install [ffmpeg](https://ffmpeg.org/download.html) for best quality.

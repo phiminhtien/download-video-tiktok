@@ -2,44 +2,37 @@ import sys
 import os
 import re
 import subprocess
-import json
-from pathlib import Path
+import requests
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
 
-def check_ffmpeg() -> bool:
+def extract_post_id(url: str) -> str | None:
+    for p in [r"(?:tiktok\.com/@[\w.-]+/(?:video|photo)/(\d+))", r"vm\.tiktok\.com/(\w+)", r"tiktok\.com/t/(\w+)"]:
+        m = re.search(p, url)
+        if m:
+            return m.group(1)
+    return None
+
+
+def ensure_dir(subdir: str) -> str:
+    path = os.path.join(DOWNLOAD_DIR, subdir)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def download_ytdlp(url: str) -> list[str] | None:
+    post_id = extract_post_id(url) or "video"
+    out_dir = ensure_dir(post_id)
+    output_template = os.path.join(out_dir, "%(id)s.%(ext)s")
+    cmd = [sys.executable, "-m", "yt_dlp", url, "-o", output_template, "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
     try:
-        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
-        return True
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return False
-
-
-def download_with_ytdlp(url: str, output_dir: str) -> str | None:
-    """Download TikTok video without watermark using yt-dlp."""
-    output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
-
-    cmd = [
-        sys.executable, "-m", "yt_dlp",
-        url,
-        "-o", output_template,
-        "--no-playlist",
-        "--no-warnings",
-        "--print", "after_move:filepath",
-    ]
-
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
-            filepath = result.stdout.strip().split("\n")[-1].strip()
-            if filepath and os.path.exists(filepath):
-                return filepath
-        else:
-            print(f"  yt-dlp error: {result.stderr.strip()}")
+            files = [f.strip() for f in result.stdout.strip().splitlines() if f.strip()]
+            return [f for f in files if os.path.exists(f)] or None
+        print(f"  yt-dlp error: {result.stderr.strip()}")
     except subprocess.TimeoutExpired:
         print("  Download timed out.")
     except Exception as e:
@@ -47,118 +40,85 @@ def download_with_ytdlp(url: str, output_dir: str) -> str | None:
     return None
 
 
-def download_direct(url: str, output_dir: str) -> str | None:
-    """Fallback: download using direct requests approach."""
-    import requests
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-    }
-
+def download_photo_tikwm(url: str) -> list[str] | None:
+    post_id = extract_post_id(url) or "unknown"
+    out_dir = ensure_dir(post_id)
     try:
-        # Parse video ID from URL
-        vid_match = re.search(r"video/(\d+)", url)
-        if not vid_match:
-            # Try short URL
-            r = requests.head(url, headers=headers, allow_redirects=True, timeout=10)
-            vid_match = re.search(r"video/(\d+)", r.url)
-            if not vid_match:
-                return None
-
-        video_id = vid_match.group(1)
-
-        # Get page
-        page_url = f"https://www.tiktok.com/@-/video/{video_id}"
-        r = requests.get(page_url, headers=headers, timeout=15)
-        html = r.text
-
-        # Extract playAddr from HTML
-        patterns = [
-            r'"playAddr"\s*:\s*"([^"]+)"',
-            r'"play_addr"\s*:\s*{[^}]*"url_list"\s*:\s*\["([^"]+)"',
-        ]
-
-        play_url = None
-        for p in patterns:
-            m = re.search(p, html)
-            if m:
-                play_url = m.group(1).replace("\\u002F", "/").replace("\\/", "/")
-                break
-
-        if not play_url:
+        resp = requests.post("https://www.tikwm.com/api/", data={"url": url, "count": 20, "hd": 1}, timeout=30)
+        data = resp.json()
+        if data.get("code") != 0:
+            print(f"  API error: {data.get('msg')}")
             return None
-
-        play_url = play_url.replace("playwm", "play")
-
-        # Download
-        filename = f"tiktok_{video_id}.mp4"
-        output_path = os.path.join(output_dir, filename)
-
-        r = requests.get(play_url, headers=headers, stream=True, timeout=60)
-        r.raise_for_status()
-
-        with open(output_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
+        images = data.get("data", {}).get("images", [])
+        if not images:
+            print("  No images found.")
+            return None
+        files = []
+        for i, img_url in enumerate(images, 1):
+            r = requests.get(img_url, timeout=30, stream=True)
+            r.raise_for_status()
+            ext = r.headers.get("Content-Type", "image/jpeg").split("/")[-1].split(";")[0]
+            if ext not in ("jpeg", "jpg", "png", "webp"):
+                ext = "jpg"
+            fp = os.path.join(out_dir, f"{i:03d}.{ext}")
+            with open(fp, "wb") as f:
+                for chunk in r.iter_content(8192):
                     f.write(chunk)
+            files.append(fp)
 
-        return output_path if os.path.exists(output_path) else None
+        music_url = data.get("data", {}).get("music", "") or data.get("data", {}).get("music_info", {}).get("play", "")
+        if music_url:
+            try:
+                r = requests.get(music_url, timeout=30, stream=True)
+                r.raise_for_status()
+                audio_ext = r.headers.get("Content-Type", "audio/mpeg").split("/")[-1].split(";")[0]
+                if audio_ext not in ("mp3", "m4a", "aac", "wav"):
+                    audio_ext = "mp3"
+                fp = os.path.join(out_dir, f"audio.{audio_ext}")
+                with open(fp, "wb") as f:
+                    for chunk in r.iter_content(8192):
+                        f.write(chunk)
+                files.append(fp)
+            except Exception as e:
+                print(f"  Audio download failed: {e}")
 
+        return files or None
     except Exception as e:
-        print(f"  Direct download error: {e}")
-        return None
+        print(f"  Error: {e}")
+    return None
 
 
 def main():
     print("=" * 55)
-    print("  TikTok Video Downloader — No Watermark")
+    print("  TikTok Downloader — No Watermark")
     print("=" * 55)
 
-    # Parse URL
     if len(sys.argv) > 1:
         tiktok_url = sys.argv[1]
     else:
-        tiktok_url = input("\nEnter TikTok video URL: ").strip()
+        tiktok_url = input("\nEnter TikTok URL: ").strip()
 
-    if not tiktok_url:
-        print("No URL provided.")
-        sys.exit(1)
-
-    if "tiktok." not in tiktok_url:
+    if not tiktok_url or "tiktok" not in tiktok_url:
         print("Invalid TikTok URL.")
         sys.exit(1)
 
-    # Output directory
-    output_dir = os.path.join(os.getcwd(), "downloads")
-    os.makedirs(output_dir, exist_ok=True)
-
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     print(f"\n  URL: {tiktok_url}")
-    print(f"  Output: {output_dir}\\")
 
-    # Check ffmpeg
-    if not check_ffmpeg():
-        print("  Note: ffmpeg not found. If download fails, install ffmpeg.")
-        print("  Download: https://ffmpeg.org/download.html\n")
-
-    # Download with yt-dlp (primary method)
-    print("\n  Downloading via yt-dlp...")
-    filepath = download_with_ytdlp(tiktok_url, output_dir)
-
-    # Fallback to direct download
-    if not filepath:
-        print("\n  Trying direct download method...")
-        filepath = download_direct(tiktok_url, output_dir)
-
-    if filepath and os.path.exists(filepath):
-        size_mb = os.path.getsize(filepath) / (1024 * 1024)
-        print(f"\n  Saved: {filepath}")
-        print(f"  Size:  {size_mb:.2f} MB")
-        print("\n  Done!")
+    print("\n  Downloading...")
+    if "/photo/" in tiktok_url:
+        files = download_photo_tikwm(tiktok_url)
     else:
-        print("\n  Download failed. Try updating yt-dlp:")
-        print(f"    {sys.executable} -m pip install -U yt-dlp")
+        files = download_ytdlp(tiktok_url)
+
+    if files:
+        total = sum(os.path.getsize(f) for f in files)
+        print(f"\n  Done! ({len(files)} file(s), {total/1024/1024:.2f} MB)")
+        print(f"  Folder: {os.path.dirname(files[0])}\\")
+        for f in files:
+            print(f"    - {os.path.basename(f)}")
+    else:
+        print("\n  Download failed.")
         sys.exit(1)
 
 
