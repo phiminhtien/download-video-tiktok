@@ -2,12 +2,18 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN pip install pip -U
+RUN addgroup --system --gid 1001 app \
+    && adduser --system --uid 1001 --gid 1001 app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --no-compile -r requirements.txt \
+    && rm -rf /root/.cache/pip
 
-COPY . .
+COPY --chown=app:app . .
+
+RUN mkdir downloads && chown app:app downloads
+
+USER app
 
 EXPOSE 8000
 
