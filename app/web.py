@@ -20,8 +20,12 @@ DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads")
 DOWNLOAD_TTL = int(os.getenv("DOWNLOAD_TTL", "0"))  # hours, 0 = never clean
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
-app.mount("/static", StaticFiles(directory=os.path.join(APP_DIR, "static")), name="static")
+templates_dir = os.path.join(APP_DIR, "templates")
+static_dir = os.path.join(APP_DIR, "static")
+os.makedirs(static_dir, exist_ok=True)
+
+templates = Jinja2Templates(directory=templates_dir)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
 
 
