@@ -26,7 +26,7 @@ def download_ytdlp(url: str) -> list[str] | None:
     post_id = extract_post_id(url) or "video"
     out_dir = ensure_dir(post_id)
     output_video = os.path.join(out_dir, "%(id)s.%(ext)s")
-    cmd = [sys.executable, "-m", "yt_dlp", url, "-o", output_video, "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
+    cmd = [sys.executable, "-m", "yt_dlp", url, "-o", output_video, "-S", "vcodec:h264", "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
