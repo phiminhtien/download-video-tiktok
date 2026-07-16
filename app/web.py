@@ -198,6 +198,46 @@ async def api_download(url: str = Form(...)):
     return JSONResponse(result)
 
 
+@app.post("/api/download-audio")
+async def api_download_audio(url: str = Form(...)):
+    url = url.strip()
+    if not url or "tiktok" not in url:
+        return JSONResponse({"success": False, "error": "Invalid TikTok URL"})
+    try:
+        post_id = extract_post_id(url) or "audio"
+        out_dir = ensure_dir(post_id)
+        resp = requests.post(
+            "https://www.tikwm.com/api/",
+            data={"url": url, "count": 1, "hd": 1},
+            timeout=30,
+        )
+        data = resp.json()
+        if data.get("code") != 0:
+            return JSONResponse({"success": False, "error": data.get("msg", "API error")})
+
+        music_url = data.get("data", {}).get("music", "") or data.get("data", {}).get("music_info", {}).get("play", "")
+        if not music_url:
+            return JSONResponse({"success": False, "error": "No audio found"})
+
+        audio_resp = requests.get(music_url, timeout=30, stream=True)
+        audio_resp.raise_for_status()
+        ext = audio_resp.headers.get("Content-Type", "audio/mpeg").split("/")[-1].split(";")[0]
+        if ext not in ("mp3", "m4a", "aac", "wav", "mpeg"):
+            ext = "mp3"
+        audio_name = f"audio.{ext}"
+        audio_path = os.path.join(out_dir, audio_name)
+        with open(audio_path, "wb") as f:
+            for chunk in audio_resp.iter_content(8192):
+                f.write(chunk)
+        return JSONResponse({
+            "success": True,
+            "file": f"{post_id}/{audio_name}",
+            "size_mb": round(os.path.getsize(audio_path) / 1024 / 1024, 2),
+        })
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)})
+
+
 if __name__ == "__main__":
     import uvicorn
     host = os.getenv("HOST", "0.0.0.0")
