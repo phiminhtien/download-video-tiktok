@@ -462,7 +462,6 @@
     <script>
         let currentImages = [];
         let currentIdx = 0;
-        let audioDownloadUrl = '';
 
         function getExt(f) { return f.split('.').pop().toLowerCase(); }
         function isImg(f) { return ['jpg','jpeg','png','webp'].includes(getExt(f)); }
@@ -606,8 +605,6 @@
                 actions.innerHTML = '';
                 if (isVideo) {
                     actions.innerHTML = `<a class="btn-action gradient" href="/downloads/${videos[0] || data.files[0]}" download>⬇ Tải video</a>`;
-                    actions.innerHTML += `<button class="btn-action purple" onclick="downloadAudio()">🎵 Tải nhạc MP3</button>`;
-                    audioDownloadUrl = url;
                 } else {
                     if (images.length > 1) {
                         actions.innerHTML += `<a class="btn-action green" href="/downloads/${images[0]}" download>⬇ Ảnh đầu</a>`;
@@ -629,33 +626,6 @@
         document.getElementById('urlInput').addEventListener('keydown', e => {
             if (e.key === 'Enter') startDownload();
         });
-
-        async function downloadAudio() {
-            if (!audioDownloadUrl) return;
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = '⏳ Đang tải...';
-            try {
-                const resp = await fetch('/api/download-audio', {
-                    method: 'POST',
-                    body: new URLSearchParams({ url: audioDownloadUrl })
-                });
-                const data = await resp.json();
-                if (data.success) {
-                    const a = document.createElement('a');
-                    a.href = `/downloads/${data.file}`;
-                    a.download = '';
-                    a.click();
-                } else {
-                    alert('Lỗi: ' + (data.error || 'Không thể tải nhạc'));
-                }
-            } catch (e) {
-                alert('Lỗi kết nối');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '🎵 Tải nhạc MP3';
-            }
-        }
     </script>
 </body>
 </html>

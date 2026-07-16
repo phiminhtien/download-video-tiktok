@@ -153,22 +153,48 @@ def download_ytdlp(url: str) -> dict:
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        files = []
+        total_size = 0
+
         if result.returncode == 0:
-            files = []
-            total_size = 0
             for f in result.stdout.strip().splitlines():
                 f = f.strip()
                 if f and os.path.exists(f):
                     files.append(f"{post_id}/{os.path.basename(f)}")
                     total_size += os.path.getsize(f)
-            if files:
-                return {
-                    "success": True,
-                    "type": "video",
-                    "files": files,
-                    "size_mb": round(total_size / 1024 / 1024, 2),
-                    "folder": post_id,
-                }
+
+        # Also download audio from tikwm API
+        try:
+            api_resp = requests.post(
+                "https://www.tikwm.com/api/",
+                data={"url": url, "count": 1, "hd": 1},
+                timeout=30,
+            )
+            api_data = api_resp.json()
+            if api_data.get("code") == 0:
+                music_url = api_data.get("data", {}).get("music", "") or api_data.get("data", {}).get("music_info", {}).get("play", "")
+                if music_url:
+                    audio_resp = requests.get(music_url, timeout=30, stream=True)
+                    audio_resp.raise_for_status()
+                    audio_name = "audio.mp3"
+                    audio_path = os.path.join(out_dir, audio_name)
+                    with open(audio_path, "wb") as af:
+                        for chunk in audio_resp.iter_content(8192):
+                            af.write(chunk)
+                    audio_size = os.path.getsize(audio_path)
+                    total_size += audio_size
+                    files.append(f"{post_id}/{audio_name}")
+        except Exception as e:
+            print(f"  Audio download failed: {e}")
+
+        if files:
+            return {
+                "success": True,
+                "type": "video",
+                "files": files,
+                "size_mb": round(total_size / 1024 / 1024, 2),
+                "folder": post_id,
+            }
         return {"success": False, "error": result.stderr.strip() or "Download failed"}
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "Download timed out"}
@@ -193,43 +219,6 @@ async def api_download(url: str = Form(...)):
 
     result = download_ytdlp(url)
     return JSONResponse(result)
-
-
-@app.post("/api/download-audio")
-async def api_download_audio(url: str = Form(...)):
-    url = url.strip()
-    if not url or "tiktok" not in url:
-        return JSONResponse({"success": False, "error": "Invalid TikTok URL"})
-    try:
-        post_id = extract_post_id(url) or "audio"
-        out_dir = ensure_dir(post_id)
-        resp = requests.post(
-            "https://www.tikwm.com/api/",
-            data={"url": url, "count": 1, "hd": 1},
-            timeout=30,
-        )
-        data = resp.json()
-        if data.get("code") != 0:
-            return JSONResponse({"success": False, "error": data.get("msg", "API error")})
-
-        music_url = data.get("data", {}).get("music", "") or data.get("data", {}).get("music_info", {}).get("play", "")
-        if not music_url:
-            return JSONResponse({"success": False, "error": "No audio found"})
-
-        audio_resp = requests.get(music_url, timeout=30, stream=True)
-        audio_resp.raise_for_status()
-        audio_name = "audio.mp3"
-        audio_path = os.path.join(out_dir, audio_name)
-        with open(audio_path, "wb") as f:
-            for chunk in audio_resp.iter_content(8192):
-                f.write(chunk)
-        return JSONResponse({
-            "success": True,
-            "file": f"{post_id}/{audio_name}",
-            "size_mb": round(os.path.getsize(audio_path) / 1024 / 1024, 2),
-        })
-    except Exception as e:
-        return JSONResponse({"success": False, "error": str(e)})
 
 
 if __name__ == "__main__":
