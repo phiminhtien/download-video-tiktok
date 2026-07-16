@@ -28,7 +28,7 @@ def download_ytdlp(url: str) -> list[str] | None:
     output_video = os.path.join(out_dir, "%(id)s.%(ext)s")
     output_audio = os.path.join(out_dir, "%(id)s_audio.%(ext)s")
 
-    cmd_video = [sys.executable, "-m", "yt_dlp", url, "-o", output_video, "-f", "bestvideo+bestaudio[ext=m4a]/best", "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
+    cmd_video = [sys.executable, "-m", "yt_dlp", url, "-o", output_video, "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
     try:
         result = subprocess.run(cmd_video, capture_output=True, text=True, timeout=120)
         if result.returncode != 0:

@@ -150,7 +150,6 @@ def download_ytdlp(url: str) -> dict:
         sys.executable, "-m", "yt_dlp",
         url,
         "-o", output_video,
-        "-f", "bestvideo+bestaudio[ext=m4a]/best",
         "--no-playlist",
         "--no-warnings",
         "--print", "after_move:filepath",
