@@ -26,47 +26,18 @@ def download_ytdlp(url: str) -> list[str] | None:
     post_id = extract_post_id(url) or "video"
     out_dir = ensure_dir(post_id)
     output_video = os.path.join(out_dir, "%(id)s.%(ext)s")
-    output_audio = os.path.join(out_dir, "%(id)s_audio.%(ext)s")
-
-    cmd_video = [sys.executable, "-m", "yt_dlp", url, "-o", output_video, "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
+    cmd = [sys.executable, "-m", "yt_dlp", url, "-o", output_video, "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
     try:
-        result = subprocess.run(cmd_video, capture_output=True, text=True, timeout=120)
-        if result.returncode != 0:
-            print(f"  yt-dlp error: {result.stderr.strip()}")
-            return None
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            files = [f.strip() for f in result.stdout.strip().splitlines() if f.strip()]
+            return [f for f in files if os.path.exists(f)] or None
+        print(f"  yt-dlp error: {result.stderr.strip()}")
     except subprocess.TimeoutExpired:
         print("  Download timed out.")
-        return None
     except Exception as e:
         print(f"  Error: {e}")
-        return None
-
-    files = []
-    for f in result.stdout.strip().splitlines():
-        f = f.strip()
-        if f and os.path.exists(f):
-            files.append(f)
-
-    # Download audio
-    cmd_audio = [sys.executable, "-m", "yt_dlp", url, "-o", output_audio, "-f", "bestaudio[ext=m4a]/bestaudio", "--no-playlist", "--no-warnings", "--print", "after_move:filepath"]
-    try:
-        audio_result = subprocess.run(cmd_audio, capture_output=True, text=True, timeout=120)
-        if audio_result.returncode == 0:
-            for f in audio_result.stdout.strip().splitlines():
-                f = f.strip()
-                if f and os.path.exists(f):
-                    name, ext = os.path.splitext(os.path.basename(f))
-                    new_name = f"{post_id}_audio{ext}"
-                    new_path = os.path.join(out_dir, new_name)
-                    try:
-                        os.rename(f, new_path)
-                        files.append(new_path)
-                    except OSError:
-                        files.append(f)
-    except Exception as e:
-        print(f"  Audio download failed: {e}")
-
-    return files or None
+    return None
 
 
 def download_photo_tikwm(url: str) -> list[str] | None:

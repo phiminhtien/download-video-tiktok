@@ -140,13 +140,12 @@ def download_photo_via_tikwm(url: str) -> dict:
 
 
 def download_ytdlp(url: str) -> dict:
-    """Download video + audio via yt-dlp."""
+    """Download video via yt-dlp."""
     post_id = extract_post_id(url) or "video"
     out_dir = ensure_dir(post_id)
     output_video = os.path.join(out_dir, "%(id)s.%(ext)s")
-    output_audio = os.path.join(out_dir, "%(id)s_audio.%(ext)s")
 
-    cmd_video = [
+    cmd = [
         sys.executable, "-m", "yt_dlp",
         url,
         "-o", output_video,
@@ -155,53 +154,23 @@ def download_ytdlp(url: str) -> dict:
         "--print", "after_move:filepath",
     ]
     try:
-        result = subprocess.run(cmd_video, capture_output=True, text=True, timeout=120)
-        files = []
-        total_size = 0
-
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
+            files = []
+            total_size = 0
             for f in result.stdout.strip().splitlines():
                 f = f.strip()
                 if f and os.path.exists(f):
                     files.append(f"{post_id}/{os.path.basename(f)}")
                     total_size += os.path.getsize(f)
-
-        # Download audio separately (bestaudio)
-        cmd_audio = [
-            sys.executable, "-m", "yt_dlp",
-            url,
-            "-o", output_audio,
-            "-f", "bestaudio[ext=m4a]/bestaudio",
-            "--no-playlist",
-            "--no-warnings",
-            "--print", "after_move:filepath",
-        ]
-        audio_result = subprocess.run(cmd_audio, capture_output=True, text=True, timeout=120)
-        if audio_result.returncode == 0:
-            for f in audio_result.stdout.strip().splitlines():
-                f = f.strip()
-                if f and os.path.exists(f):
-                    basename = os.path.basename(f)
-                    # Rename to avoid conflict with video
-                    name, ext = os.path.splitext(basename)
-                    new_name = f"{post_id}_audio{ext}"
-                    new_path = os.path.join(out_dir, new_name)
-                    try:
-                        os.rename(f, new_path)
-                    except OSError:
-                        new_path = f
-                        new_name = os.path.basename(f)
-                    files.append(f"{post_id}/{new_name}")
-                    total_size += os.path.getsize(new_path)
-
-        if files:
-            return {
-                "success": True,
-                "type": "video",
-                "files": files,
-                "size_mb": round(total_size / 1024 / 1024, 2),
-                "folder": post_id,
-            }
+            if files:
+                return {
+                    "success": True,
+                    "type": "video",
+                    "files": files,
+                    "size_mb": round(total_size / 1024 / 1024, 2),
+                    "folder": post_id,
+                }
         return {"success": False, "error": result.stderr.strip() or "Download failed"}
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "Download timed out"}
