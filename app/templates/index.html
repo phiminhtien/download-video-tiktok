@@ -605,6 +605,9 @@
                 actions.innerHTML = '';
                 if (isVideo) {
                     actions.innerHTML = `<a class="btn-action gradient" href="/downloads/${videos[0] || data.files[0]}" download>⬇ Tải video</a>`;
+                    if (audios.length > 0) {
+                        actions.innerHTML += `<a class="btn-action purple" href="/downloads/${audios[0]}" download>🎵 Tải nhạc</a>`;
+                    }
                 } else {
                     if (images.length > 1) {
                         actions.innerHTML += `<a class="btn-action green" href="/downloads/${images[0]}" download>⬇ Ảnh đầu</a>`;
