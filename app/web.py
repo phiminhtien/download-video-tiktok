@@ -112,10 +112,7 @@ def download_photo_via_tikwm(url: str) -> dict:
             try:
                 audio_resp = requests.get(music_url, timeout=30, stream=True)
                 audio_resp.raise_for_status()
-                audio_ext = audio_resp.headers.get("Content-Type", "audio/mpeg").split("/")[-1].split(";")[0]
-                if audio_ext not in ("mp3", "m4a", "aac", "wav"):
-                    audio_ext = "mp3"
-                audio_name = f"audio.{audio_ext}"
+                audio_name = "audio.mp3"
                 audio_path = os.path.join(out_dir, audio_name)
                 with open(audio_path, "wb") as f:
                     for chunk in audio_resp.iter_content(8192):
@@ -221,10 +218,7 @@ async def api_download_audio(url: str = Form(...)):
 
         audio_resp = requests.get(music_url, timeout=30, stream=True)
         audio_resp.raise_for_status()
-        ext = audio_resp.headers.get("Content-Type", "audio/mpeg").split("/")[-1].split(";")[0]
-        if ext not in ("mp3", "m4a", "aac", "wav", "mpeg"):
-            ext = "mp3"
-        audio_name = f"audio.{ext}"
+        audio_name = "audio.mp3"
         audio_path = os.path.join(out_dir, audio_name)
         with open(audio_path, "wb") as f:
             for chunk in audio_resp.iter_content(8192):
