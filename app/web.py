@@ -3,6 +3,10 @@ import re
 import sys
 import subprocess
 import shutil
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("tiktok")
 import threading
 import time
 
@@ -131,9 +135,11 @@ def download_photo_via_tikwm(url: str) -> dict:
             "folder": folder,
         }
     except requests.RequestException as e:
-        return {"success": False, "error": f"API request failed: {e}"}
+        logger.error(f"Photo API error: {e}")
+        return {"success": False, "error": "Tải thất bại"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        logger.error(f"Photo download error: {e}", exc_info=True)
+        return {"success": False, "error": "Lỗi máy chủ"}
 
 
 def download_ytdlp(url: str) -> dict:
@@ -195,11 +201,14 @@ def download_ytdlp(url: str) -> dict:
                 "size_mb": round(total_size / 1024 / 1024, 2),
                 "folder": post_id,
             }
-        return {"success": False, "error": result.stderr.strip() or "Download failed"}
+        logger.warning(f"Video download failed: {result.stderr.strip()}")
+        return {"success": False, "error": "Tải thất bại"}
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": "Download timed out"}
+        logger.error(f"Download timed out: {url}")
+        return {"success": False, "error": "Quá thời gian chờ"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        logger.error(f"Download error: {e}", exc_info=True)
+        return {"success": False, "error": "Lỗi máy chủ"}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -211,7 +220,9 @@ async def index(request: Request):
 async def api_download(url: str = Form(...)):
     url = url.strip()
     if not url or "tiktok" not in url:
-        return JSONResponse({"success": False, "error": "Invalid TikTok URL"})
+        return JSONResponse({"success": False, "error": "Link không hợp lệ"})
+
+    logger.info(f"Download request: {url}")
 
     if is_photo_url(url):
         result = download_photo_via_tikwm(url)

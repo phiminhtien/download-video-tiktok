@@ -530,7 +530,7 @@
                 const data = await resp.json();
 
                 if (!data.success) {
-                    showStatus(data.error || 'Tải thất bại', 'error');
+                    showStatus('Tải thất bại. Thử lại sau.', 'error');
                     return;
                 }
 
