@@ -4,19 +4,31 @@ import sys
 import subprocess
 import shutil
 import logging
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger("tiktok")
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
 import requests
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+
+executor = ThreadPoolExecutor(max_workers=2)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("tiktok")
 
 app = FastAPI(title="TikTok Downloader")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(APP_DIR)
@@ -31,6 +43,22 @@ os.makedirs(static_dir, exist_ok=True)
 templates = Jinja2Templates(directory=templates_dir)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
+
+TIKTOK_URL_RE = re.compile(
+    r"^https?://(?:www\.)?(?:vm\.)?tiktok\.com/"
+    r"@[\w.\-]+/(?:video|photo)/\d+"
+)
+
+def sanitize_url(url: str) -> str | None:
+    url = url.strip().split("?")[0].split("#")[0]
+    if TIKTOK_URL_RE.match(url):
+        return url
+    return None
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 def cleanup_old():
@@ -218,17 +246,17 @@ async def index(request: Request):
 
 @app.post("/api/download")
 async def api_download(url: str = Form(...)):
-    url = url.strip()
-    if not url or "tiktok" not in url:
+    url = sanitize_url(url)
+    if not url:
         return JSONResponse({"success": False, "error": "Link không hợp lệ"})
 
     logger.info(f"Download request: {url}")
 
+    loop = asyncio.get_event_loop()
     if is_photo_url(url):
-        result = download_photo_via_tikwm(url)
-        return JSONResponse(result)
-
-    result = download_ytdlp(url)
+        result = await loop.run_in_executor(executor, download_photo_via_tikwm, url)
+    else:
+        result = await loop.run_in_executor(executor, download_ytdlp, url)
     return JSONResponse(result)
 
 
